@@ -1,15 +1,31 @@
 .MODEL SMALL
 	Space EQU " "					;Szóköz karakter
+	CR    EQU 13
+	LF    EQU 10
+
 .STACK
 .DATA
+	disc_text DB "Number of disc: ",0
+
 .DATA?
 	block DB 512 DUP (?)			;1 blokknyi terület kijelölése
+	disc  DB 1   DUP (?)			;1 Byte terület lefoglalása a lemezmeghajtó számának
 	
 .CODE
 
 main PROC
 	MOV  AX, Dgroup					;DS beállítása
 	MOV  DS, AX
+
+	LEA  BX, disc_text
+	CALL write_string
+	CALL read_decimal
+	MOV  disc, DL
+
+	MOV  DL, disc
+	CALL write_decimal
+	CALL cr_lf
+
 	LEA  BX, block					;DS:BX memóriacímre tölti a blokkot
 	MOV  AL, 0						;Lemezmeghajtó száma (A:0, B:1, C:2, stb.)
 	MOV  CX, 1						;Egyszerre beolvasott blokkok száma
@@ -25,7 +41,7 @@ main ENDP
 write_block PROC
 	PUSH CX							;CX mentése
 	PUSH DX							;DX mentése
-	MOV  CX, 32						;Kiírandó sorok száma CX-be
+	MOV  CX, 16						;Kiírandó sorok száma CX-be (ideiglenesen csökkentve)
 	write_block_new:
 	CALL out_line					;Egy sor kiírása
 	CALL cr_lf						;Soremelés
@@ -69,6 +85,42 @@ out_line_visible:
 	RET								;Vissza a hívó programba
 out_line ENDP
 
+write_string proc					;BX-ben címzett karaktersorozat kiírása 0 kódig.
+	PUSH DX							;DX mentése a verembe
+	PUSH BX							;BX mentése a verembe
+write_string_new:
+	MOV  DL, [BX]					;DL-be egy karakter betöltése
+	OR   DL, DL						;DL vizsgálata
+	JZ   write_string_end			;0 esetén kilépés
+	CALL write_char					;Karakter kiírása
+	INC  BX							;BX a következõ karakterre mutat
+	JMP  write_string_new			;A következõ karakter betöltése
+write_string_end:
+	POP  BX							;BX visszaállítása
+	POP  DX							;DX visszaállítása
+	RET								;Visszatérés
+write_string endp
+
+read_decimal proc
+	PUSH AX							;AX mentése a verembe
+	PUSH BX							;BX mentése a verembe
+	MOV  BL, 10						;BX-be a számrendszer alapszáma, ezzel szorzunk
+	XOR  AX, AX						;AX törlése
+read_decimal_new:
+	CALL read_char					;Egy karakter beolvasása
+	CMP  DL, CR						;ENTER ellenõrzése
+	JE   read_decimal_end			;Vége, ha ENTER volt az utolsó karakter
+	SUB  DL, "0"					;Karakterkód minusz ”0” kódja
+	MUL  BL							;AX szorzása 10-zel
+	ADD  AL, DL						;A következõ helyi érték hozzáadása
+	JMP  read_decimal_new			;A következõ karakter beolvasása
+read_decimal_end:
+	MOV  DL, AL						;DL-be a beírt szám
+	POP  BX							;AB visszaállítása
+	POP  AX							;AX visszaállítása
+	RET								;Visszatérés a hívó rutinba
+read_decimal endp
+
 write_hexa proc						;A DL-ben lévõ két hexa számjegy kiírása
 	PUSH CX							;CX mentése a verembe
 	PUSH DX							;DX mentése a verembe
@@ -84,6 +136,33 @@ write_hexa proc						;A DL-ben lévõ két hexa számjegy kiírása
 	RET								;Visszatérés a hívó rutinba
 write_hexa endp
 
+write_decimal proc
+	PUSH AX							;AX mentése a verembe
+	PUSH CX							;CX mentése a verembe
+	PUSH DX							;DX mentése a verembe
+	PUSH SI							;SI mentése a verembe
+	XOR  DH, DH						;DH törlése
+	MOV  AX, DX						;AX-be a szám
+	MOV  SI, 10						;SI-be az osztó
+	XOR  CX, CX						;CX-be kerül az osztások száma
+decimal_non_zero:
+	XOR  DX, DX						;DX törlése
+	DIV  SI							;DX:AX 32 bites szám osztása SI-vel, az eredmény AX-be, a maradék DX-be kerül
+	PUSH DX							;DX mentése a verembe
+	INC  CX							;Számláló növelése
+	OR   AX, AX						;Státuszbitek beállítása AX-nek megfelelõen
+	JNE  decimal_non_zero			;Vissza, ha az eredmény még nem nulla
+decimal_loop:
+	POP  DX							;Az elmentett maradék visszahívása
+	CALL write_hexa_digit			;Egy decimális digit kiírása
+	LOOP decimal_loop
+	POP  SI							;SI visszaállítása
+	POP  DX							;DX visszaállítása
+	POP  CX							;CX visszaállítása
+	POP  AX							;AX visszaállítása
+	RET								;Visszatérés a hívó rutinba
+write_decimal endp
+
 write_hexa_digit PROC
 	PUSH DX							;DX mentése a verembe
 	CMP  DL, 10						;DL összehasonlítása 10-zel
@@ -98,9 +177,9 @@ write_hexa_digit ENDP
 
 cr_lf PROC
 	PUSH DX							;DX mentése a verembe
-	MOV  DL, 13
+	MOV  DL, CR
 	CALL write_char					;kurzor a sor elejére
-	MOV  DL, 10
+	MOV  DL, LF
 	CALL write_char					;Kurzor egy sorral lejjebb
 	POP  DX							;DX visszaállítása
 	RET								;Visszatérés a hívó rutinba
@@ -116,6 +195,15 @@ clear_screen PROC
 	INT  10h						;Képernyõ törlése
 	RET
 clear_screen ENDP
+
+read_char proc						;Karakter beolvasása. A beolvasott karakter DL-be kerül
+	PUSH AX							;AX mentése a verembe
+	MOV  AH, 1						;AH-ba a beolvasás funkciókód
+	INT  21h						;Egy karakter beolvasása, a kód AL-be kerül
+	MOV  DL, AL						;DL-be a karakter kódja
+	POP  AX							;AX visszaállítása
+	RET								;Visszatérés a hívó rutinba
+read_char endp
 
 write_char proc						;A DL-ben lévõ karakter kiírása a képernyõre
 	PUSH AX							;AX mentése a verembe
