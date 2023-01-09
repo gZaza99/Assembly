@@ -24,18 +24,10 @@ main PROC
 	CALL read_decimal
 	MOV  disc, DL
 
-	;MOV  DL, disc
-	;CALL write_decimal
-	;CALL cr_lf
-
 	LEA  BX, sector_text
 	CALL write_string
 	CALL read_decimal
 	MOV  sector, DL
-
-	;MOV  DL, sector
-	;CALL write_decimal
-	;CALL cr_lf
 
 	LEA  BX, block					;DS:BX memóriacímre tölti a blokkot
 	MOV  AL, disc					;Lemezmeghajtó száma (A:0, B:1, C:2, stb.)
@@ -148,33 +140,6 @@ write_hexa proc						;A DL-ben lévõ két hexa számjegy kiírása
 	POP  CX							;CX visszaállítása
 	RET								;Visszatérés a hívó rutinba
 write_hexa endp
-
-write_decimal proc
-	PUSH AX							;AX mentése a verembe
-	PUSH CX							;CX mentése a verembe
-	PUSH DX							;DX mentése a verembe
-	PUSH SI							;SI mentése a verembe
-	XOR  DH, DH						;DH törlése
-	MOV  AX, DX						;AX-be a szám
-	MOV  SI, 10						;SI-be az osztó
-	XOR  CX, CX						;CX-be kerül az osztások száma
-decimal_non_zero:
-	XOR  DX, DX						;DX törlése
-	DIV  SI							;DX:AX 32 bites szám osztása SI-vel, az eredmény AX-be, a maradék DX-be kerül
-	PUSH DX							;DX mentése a verembe
-	INC  CX							;Számláló növelése
-	OR   AX, AX						;Státuszbitek beállítása AX-nek megfelelõen
-	JNE  decimal_non_zero			;Vissza, ha az eredmény még nem nulla
-decimal_loop:
-	POP  DX							;Az elmentett maradék visszahívása
-	CALL write_hexa_digit			;Egy decimális digit kiírása
-	LOOP decimal_loop
-	POP  SI							;SI visszaállítása
-	POP  DX							;DX visszaállítása
-	POP  CX							;CX visszaállítása
-	POP  AX							;AX visszaállítása
-	RET								;Visszatérés a hívó rutinba
-write_decimal endp
 
 write_hexa_digit PROC
 	PUSH DX							;DX mentése a verembe
