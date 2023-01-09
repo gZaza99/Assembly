@@ -24,23 +24,24 @@ main PROC
 	CALL read_decimal
 	MOV  disc, DL
 
-	MOV  DL, disc
-	CALL write_decimal
-	CALL cr_lf
+	;MOV  DL, disc
+	;CALL write_decimal
+	;CALL cr_lf
 
 	LEA  BX, sector_text
 	CALL write_string
 	CALL read_decimal
 	MOV  sector, DL
 
-	MOV  DL, sector
-	CALL write_decimal
-	CALL cr_lf
+	;MOV  DL, sector
+	;CALL write_decimal
+	;CALL cr_lf
 
 	LEA  BX, block					;DS:BX memóriacímre tölti a blokkot
-	MOV  AL, 0						;Lemezmeghajtó száma (A:0, B:1, C:2, stb.)
+	MOV  AL, disc					;Lemezmeghajtó száma (A:0, B:1, C:2, stb.)
 	MOV  CX, 1						;Egyszerre beolvasott blokkok száma
-	MOV  DX, 0						;Lemezolvasás kezdõblokkja
+	XOR  DX, DX
+	MOV  DL, sector					;Lemezolvasás kezdõblokkja
 	INT  25h						;Olvasás
 	POPF							;A veremben tárolt jelzõbitek törlése
 	XOR  DX, DX						;Kiírandó adatok kezdõcíme DS:DX
