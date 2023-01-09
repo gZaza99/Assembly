@@ -5,11 +5,13 @@
 
 .STACK
 .DATA
-	disc_text DB "Number of disc: ",0
+	disc_text   DB "Number of disc: ",0
+	sector_text DB "Number of sector: ",0
 
 .DATA?
-	block DB 512 DUP (?)			;1 blokknyi terület kijelölése
-	disc  DB 1   DUP (?)			;1 Byte terület lefoglalása a lemezmeghajtó számának
+	block  DB 512 DUP (?)			;1 blokknyi terület kijelölése
+	disc   DB 1   DUP (?)			;1 byte terület lefoglalása a lemezmeghajtó számának
+	sector DB 1   DUP (?)			;1 byte terület lefoglalása a kiolvasandó szektor számának
 	
 .CODE
 
@@ -26,6 +28,15 @@ main PROC
 	CALL write_decimal
 	CALL cr_lf
 
+	LEA  BX, sector_text
+	CALL write_string
+	CALL read_decimal
+	MOV  sector, DL
+
+	MOV  DL, sector
+	CALL write_decimal
+	CALL cr_lf
+
 	LEA  BX, block					;DS:BX memóriacímre tölti a blokkot
 	MOV  AL, 0						;Lemezmeghajtó száma (A:0, B:1, C:2, stb.)
 	MOV  CX, 1						;Egyszerre beolvasott blokkok száma
@@ -34,6 +45,7 @@ main PROC
 	POPF							;A veremben tárolt jelzõbitek törlése
 	XOR  DX, DX						;Kiírandó adatok kezdõcíme DS:DX
 	CALL write_block				;Egy blokk kiírása
+
 	MOV  AH, 4Ch					;AH-ba a visszatérés funkciókódja
 	INT  21h						;Visszatérés az operációs rendszerbe
 main ENDP
@@ -42,7 +54,7 @@ write_block PROC
 	PUSH CX							;CX mentése
 	PUSH DX							;DX mentése
 	MOV  CX, 16						;Kiírandó sorok száma CX-be (ideiglenesen csökkentve)
-	write_block_new:
+write_block_new:
 	CALL out_line					;Egy sor kiírása
 	CALL cr_lf						;Soremelés
 	ADD  DX, 16						;Következõ sor adatainak kezdõcíme;
