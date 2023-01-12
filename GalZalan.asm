@@ -11,7 +11,7 @@
 .DATA
 	disc_text   DB "Number of disc: ",0
 	sector_text DB "Number of sector: ",0
-	lines       WORD 21
+	lines       WORD 20
 
 .DATA?
 	block  DB 512 DUP (?)			;1 blokknyi terület kijelölése
@@ -26,12 +26,6 @@ main PROC
 
 	MOV  AX, 0B800h					;Képernyõ-memória szegmenscíme ES-be
 	MOV  ES, AX
-
-	;MOV  BL, 2						;Y = 2
-	;MOV  BH, 60						;X = 60
-	;MOV  DL, "P"					;Karakter: "P"
-	;MOV  DH, attr_border			;Attribútum: Standard megjelenítés
-	;CALL draw_char					;Kiírás
 
 	LEA  BX, disc_text
 	CALL write_string
@@ -63,7 +57,7 @@ write_block PROC
 	PUSH BX							;BX mentése
 	PUSH CX							;CX mentése
 	PUSH DX							;DX mentése
-	MOV  BX, 0000001000000101b		;DI -be a képernyõ elsõ sor -és oszlopindexe [ Oszlop=2 | Sor=3 ]
+	MOV  BX, 0000001000000100b		;BX -be a képernyõ elsõ sor -és oszlopindexe [ Oszlop=2 | Sor=4 ]
 	MOV  CX, lines					;Kiírandó sorok száma CX-be (ideiglenesen csökkentve)
 write_block_new:
 	CALL out_line					;Egy sor kiírása
@@ -89,7 +83,7 @@ out_line PROC
 out_line_hexa_out:
 
 	MOV  DL, Block[BP]				;Egy bájt betöltése
-	CALL cvt2hexa					;Hexadecimális formátummá alakítás
+	CALL cvt2hexa					;Hexadecimális formátummá alakítás azaz =>  AX = cvt2hexa( DL )
 
 	INC  BH							;	X := Következõ oszlop
 	MOV  DL, AH						;	DL -be az 1. hexa karakter
@@ -146,7 +140,7 @@ write_string ENDP
 read_decimal PROC
 	PUSH AX							;AX mentése a verembe
 	PUSH BX							;BX mentése a verembe
-	MOV  BL, 10						;BX-be a számrendszer alapszáma, ezzel szorzunk
+	MOV  BL, 10						;BL-be a számrendszer alapszáma, ezzel szorzunk
 	XOR  AX, AX						;AX törlése
 read_decimal_new:
 	CALL read_char					;Egy karakter beolvasása
@@ -158,7 +152,7 @@ read_decimal_new:
 	JMP  read_decimal_new			;A következõ karakter beolvasása
 read_decimal_end:
 	MOV  DL, AL						;DL-be a beírt szám
-	POP  BX							;AB visszaállítása
+	POP  BX							;BX visszaállítása
 	POP  AX							;AX visszaállítása
 	RET								;Visszatérés a hívó rutinba
 read_decimal ENDP
@@ -170,11 +164,11 @@ cvt2hexa PROC						;write_hexa alprogram kicsit átalakítva
 	MOV  DH, DL						;DL mentése
 	MOV  CL, 4						;Shift-elés száma CX-be
 	SHR  DL, CL						;DL shift-elése 4 hellyel jobbra
-	CALL get_hexa_digit				;AL -be az elsõ hexa karakter
+	CALL get_hexa_digit				;AL = get_hexa_digit( DL )
 	MOV  AH, AL						;AH -ba az elsõ hexa karakter
 	MOV  DL, DH						;Az eredeti érték visszatöltése DL-be
 	AND  DL, 0Fh					;A felsõ négy bit törlése
-	CALL get_hexa_digit				;AL -be az elsõ hexa karakter
+	CALL get_hexa_digit				;AL = get_hexa_digit( DL )
 	POP  DX							;DX visszaállítása
 	POP  CX							;CX visszaállítása
 	RET								;AX -szel visszatérés a hívó rutinba
@@ -190,18 +184,8 @@ get_hexa_digit_end:
 	RET								;AL -lel Visszatérés a hívó rutinba
 get_hexa_digit ENDP
 
-cr_lf PROC
-	PUSH DX							;DX mentése a verembe
-	MOV  DL, CR
-	CALL write_char					;kurzor a sor elejére
-	MOV  DL, LF
-	CALL write_char					;Kurzor egy sorral lejjebb
-	POP  DX							;DX visszaállítása
-	RET								;Visszatérés a hívó rutinba
-cr_lf ENDP
-
 clear_screen PROC
-	XOR  AL, AL						;Ablak törlése
+	XOR  AL, AL						;AL törlése
 	XOR  CX, CX						;Bal felsõ sarok (CL = 0, CH = 0)
 	MOV  DH, Screen_height			;50 soros képernyõ alsó sora (25 sorosnál ide 24) kell
 	DEC  DH							;Képernyõ magassága -1
@@ -226,10 +210,10 @@ read_char ENDP
 draw_char PROC USES AX CX DI		;BX = [ X:BYTE | Y:BYTE ] DX = Kiírandó karakter attribútummal
 	MOV  AL, BL						;AL -be az Y paraméter a verembõl
 	DEC  AL							;Y-1 a nullától indexelés miatt
-	MOV  CL, Screen_width			;BL -be a képernyõ szélessége (oszlopok száma)
+	MOV  CL, Screen_width			;CL -be a képernyõ szélessége (oszlopok száma)
 	MUL  CL							;AX -be a kívánt magasság
-	XOR  CX, CX						;BX kinullázása a felsõ 8 bit miatt
-	MOV  CL, BH						;BL -be az X paraméter a verembõl
+	XOR  CX, CX						;CX kinullázása a felsõ 8 bit miatt
+	MOV  CL, BH						;CL -be az X paraméter a verembõl
 	ADD  AX, CX						;AX -be a kívánt offset karaktter pozíció
 	SHL  AX, 1						;AX -be a kívánt offset memória cím
 	
@@ -242,8 +226,8 @@ draw_char ENDP
 
 write_char PROC						;A DL-ben lévõ karakter kiírása a képernyõre
 	PUSH AX							;AX mentése a verembe
-	MOV  AH, 2						; AH-ba a képernyõre írás funkciókódja
-	INT  21h						; Karakter kiírása
+	MOV  AH, 2						;AH-ba a képernyõre írás funkciókódja
+	INT  21h						;Karakter kiírása
 	POP  AX							;AX visszaállítása
 	RET								;Visszatérés a hívó rutinba
 write_char ENDP
