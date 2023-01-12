@@ -11,6 +11,7 @@
 .DATA
 	disc_text   DB "Number of disc: ",0
 	sector_text DB "Number of sector: ",0
+	lines       WORD 21
 
 .DATA?
 	block  DB 512 DUP (?)			;1 blokknyi terület kijelölése
@@ -26,82 +27,103 @@ main PROC
 	MOV  AX, 0B800h					;Képernyõ-memória szegmenscíme ES-be
 	MOV  ES, AX
 
-	MOV  BL, 2						;Y = 2
-	MOV  BH, 60						;X = 60
-	MOV  DL, "P"					;Karakter: "P"
-	MOV  DH, attr_border			;Attribútum: Standard megjelenítés
-	CALL draw_char					;Kiírás
+	;MOV  BL, 2						;Y = 2
+	;MOV  BH, 60						;X = 60
+	;MOV  DL, "P"					;Karakter: "P"
+	;MOV  DH, attr_border			;Attribútum: Standard megjelenítés
+	;CALL draw_char					;Kiírás
 
-	;LEA  BX, disc_text
-	;CALL write_string
-	;CALL read_decimal
-	;MOV  disc, DL
+	LEA  BX, disc_text
+	CALL write_string
+	CALL read_decimal
+	MOV  disc, DL
 
-	;LEA  BX, sector_text
-	;CALL write_string
-	;CALL read_decimal
-	;MOV  sector, DL
+	LEA  BX, sector_text
+	CALL write_string
+	CALL read_decimal
+	MOV  sector, DL
 
-	;CALL clear_screen
+	CALL clear_screen
 
-	;LEA  BX, block					;DS:BX memóriacímre tölti a blokkot
-	;MOV  AL, disc					;Lemezmeghajtó száma (A:0, B:1, C:2, stb.)
-	;MOV  CX, 1						;Egyszerre beolvasott blokkok száma
-	;XOR  DX, DX
-	;MOV  DL, sector					;Lemezolvasás kezdõblokkja
-	;INT  25h						;Olvasás
-	;POPF							;A veremben tárolt jelzõbitek törlése
-	;XOR  DX, DX						;Kiírandó adatok kezdõcíme DS:DX
-	;CALL write_block				;Egy blokk kiírása
+	LEA  BX, block					;DS:BX memóriacímre tölti a blokkot
+	MOV  AL, disc					;Lemezmeghajtó száma (A:0, B:1, C:2, stb.)
+	MOV  CX, 1						;Egyszerre beolvasott blokkok száma
+	XOR  DX, DX
+	MOV  DL, sector					;Lemezolvasás kezdõblokkja
+	INT  25h						;Olvasás
+	POPF							;A veremben tárolt jelzõbitek törlése
+	XOR  DX, DX						;Kiírandó adatok kezdõcíme DS:DX
+	CALL write_block				;Egy blokk kiírása
 
 	MOV  AH, 4Ch					;AH-ba a visszatérés funkciókódja
 	INT  21h						;Visszatérés az operációs rendszerbe
 main ENDP
 
 write_block PROC
+	PUSH BX							;BX mentése
 	PUSH CX							;CX mentése
 	PUSH DX							;DX mentése
-	MOV  CX, 16						;Kiírandó sorok száma CX-be (ideiglenesen csökkentve)
+	MOV  BX, 0000001000000101b		;DI -be a képernyõ elsõ sor -és oszlopindexe [ Oszlop=2 | Sor=3 ]
+	MOV  CX, lines					;Kiírandó sorok száma CX-be (ideiglenesen csökkentve)
 write_block_new:
 	CALL out_line					;Egy sor kiírása
-	CALL cr_lf						;Soremelés
-	ADD  DX, 16						;Következõ sor adatainak kezdõcíme;
+	ADD  DX, 16						;Következõ sor adatainak kezdõcíme
+	INC  BL							;Következõ sor indexe
 	LOOP write_block_new			;Új sor
 	POP  DX							;DX visszaállítása
 	POP  CX							;CX visszaállítása
+	POP  BX							;BX visszaállítása
 	RET
 write_block ENDP
 
 out_line PROC
+	PUSH BP							;BP mentése
+	PUSH AX							;AX mentése
 	PUSH BX							;BX mentése
 	PUSH CX							;CX mentése
 	PUSH DX							;DX mentése
-	MOV  BX,DX						;Sor adatainak kezdõcíme BX-be
-	PUSH BX							;Mentés a karakteres kiíráshoz
+	MOV  BP,DX						;Sor adatainak kezdõcíme BP-be
+	PUSH BP							;Mentés a karakteres kiíráshoz
+
 	MOV  CX, 16						;Egy sorban 16 hexadecimális karakter
 out_line_hexa_out:
-	MOV  DL, Block[BX]				;Egy bájt betöltése
-	CALL write_hexa					;Kiírás hexadecimális formában
-	MOV  DL, Space					;Szóköz kiírása a hexa kódok között
-	CALL write_char
-	INC  BX							;Következõ adatbájt címe
+
+	MOV  DL, Block[BP]				;Egy bájt betöltése
+	CALL cvt2hexa					;Hexadecimális formátummá alakítás
+
+	INC  BH							;	X := Következõ oszlop
+	MOV  DL, AH						;	DL -be az 1. hexa karakter
+	MOV  DH, attr_text				;	Standard stílusú karakter
+	CALL draw_char					;1. hexa karakter kirajzolása
+
+	INC  BH							;	X := Következõ oszlop
+	MOV  DL, AL						;	DL -be a 2. hexa karakter
+	MOV  DH, attr_text				;	Standard stílusú karakter
+	CALL draw_char					;2. hexa karakter kirajzolása
+
+	INC  BH							;Üres hely kihagyása a hexa kódok között
+	INC  BP							;Következõ adatbájt címe
 	LOOP out_line_hexa_out			;Következõ bájt
-	MOV  DL, Space					;Szóköz kiírása a kétféle mód között
-	CALL write_char
+	INC  BH							;Üres hely kihagyása a kétféle mód között
 	MOV  CX, 16						;Egy sorban 16 karakter
-	POP  BX							;Adatok kezdõcímének beállítása
+	POP  BP							;Adatok kezdõcímének beállítása
 out_line_ascii_out:
-	MOV  DL, Block[BX]				;Egy bájt betöltése
+	INC  BH							;X := Következõ oszlop
+	MOV  DL, Block[BP]				;Egy bájt betöltése
 	CMP  DL, Space					;Vezérlõkarakterek kiszûrése
-	JA   out_line_visible			;Ugrás, ha látható karakter
-	MOV  DL, Space					;Nem látható karakterek cseréje szóközre
-out_line_visible:
-	CALL write_char					;Karakter kiírása
-	INC  BX							;Következõ adatbájt címe
+	JBE  out_line_invisible			;Ugrás, ha NEM látható karakter
+
+	MOV  DH, attr_text				;Standard stílusú karakter
+	CALL draw_char					;Karakter kirajzolása
+
+out_line_invisible:
+	INC  BP							;Következõ adatbájt címe
 	LOOP out_line_ascii_out			;Következõ bájt
 	POP  DX							;DX visszaállítása
 	POP  CX							;CX visszaállítása
 	POP  BX							;BX visszaállítása
+	POP  AX							;AX visszaállítása
+	POP  BP							;BP visszaállítása
 	RET								;Vissza a hívó programba
 out_line ENDP
 
@@ -141,32 +163,32 @@ read_decimal_end:
 	RET								;Visszatérés a hívó rutinba
 read_decimal ENDP
 
-write_hexa proc						;A DL-ben lévõ két hexa számjegy kiírása
+;cvt = convert
+cvt2hexa PROC						;write_hexa alprogram kicsit átalakítva
 	PUSH CX							;CX mentése a verembe
 	PUSH DX							;DX mentése a verembe
 	MOV  DH, DL						;DL mentése
 	MOV  CL, 4						;Shift-elés száma CX-be
 	SHR  DL, CL						;DL shift-elése 4 hellyel jobbra
-	CALL write_hexa_digit			;Hexadecimális digit kiírása
+	CALL get_hexa_digit				;AL -be az elsõ hexa karakter
+	MOV  AH, AL						;AH -ba az elsõ hexa karakter
 	MOV  DL, DH						;Az eredeti érték visszatöltése DL-be
 	AND  DL, 0Fh					;A felsõ négy bit törlése
-	CALL write_hexa_digit			;Hexadecimális digit kiírása
+	CALL get_hexa_digit				;AL -be az elsõ hexa karakter
 	POP  DX							;DX visszaállítása
 	POP  CX							;CX visszaállítása
-	RET								;Visszatérés a hívó rutinba
-write_hexa endp
+	RET								;AX -szel visszatérés a hívó rutinba
+cvt2hexa ENDP
 
-write_hexa_digit PROC
-	PUSH DX							;DX mentése a verembe
+get_hexa_digit PROC USES DX			;#TODO: Visszaad egy hexa karaktert
 	CMP  DL, 10						;DL összehasonlítása 10-zel
-	JB   non_hexa_letter			;Ugrás, ha kisebb 10-nél
-	ADD  DL, "A"-"0"-10				;A – F betût kell kiírni
-non_hexa_letter:
+	JB   get_hexa_digit_end			;Ugrás, ha kisebb 10-nél
+	ADD  DL, "A"-"0"-10				;A – F betût kell menteni
+get_hexa_digit_end:
 	ADD  DL, "0"					;Az ASCII kód megadása
-	CALL write_char					;A karakter kiírása
-	POP  DX							;DX visszaállítása
-	RET								;Visszatérés a hívó rutinba
-write_hexa_digit ENDP
+	MOV  AL, DL						;A karakter kiírása
+	RET								;AL -lel Visszatérés a hívó rutinba
+get_hexa_digit ENDP
 
 cr_lf PROC
 	PUSH DX							;DX mentése a verembe
