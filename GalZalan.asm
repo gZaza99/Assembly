@@ -1,9 +1,9 @@
-.MODEL SMALL, C						;Paraméter vermen keresztüli átadásához kell a híváskonvenció
+.MODEL SMALL
 	Space         EQU " "			;Szóköz karakter
 	CR            EQU 13			;CR-be a kurzor a sor elejére kód
 	LF            EQU 10			;LF-be a kurzor új sorba kód
 	attr_text     EQU 00000111b		;Standard fekete alapon halvány fehér szín
-	attr_border   EQU 01110000b		;Fehér alapon fekete szín
+	attr_border   EQU 11010000b		;Ibolya (lila) alapon fekete szín és villog
 	Screen_width  EQU 80			;Képernyõ szélessége
 	Screen_height EQU 25			;Képernyõ magassága
 
@@ -26,13 +26,10 @@ main PROC
 	MOV  AX, 0B800h					;Képernyõ-memória szegmenscíme ES-be
 	MOV  ES, AX
 
-	MOV  AL, Screen_height			;Y = 25 - 1
-	DEC  AL
-	MOV  AH, 60						;X = 60
-	PUSH AX							;XY = [ 10 | 1 ]
-	MOV  AL, "P"					;Karakter: "P"
-	MOV  AH, attr_text				;Attribútum: Standard megjelenítés
-	PUSH AX
+	MOV  BL, 2						;Y = 2
+	MOV  BH, 60						;X = 60
+	MOV  DL, "P"					;Karakter: "P"
+	MOV  DH, attr_border			;Attribútum: Standard megjelenítés
 	CALL draw_char					;Kiírás
 
 	;LEA  BX, disc_text
@@ -144,7 +141,7 @@ read_decimal_end:
 	RET								;Visszatérés a hívó rutinba
 read_decimal ENDP
 
-write_hexa PROC						;A DL-ben lévõ két hexa számjegy kiírása
+write_hexa proc						;A DL-ben lévõ két hexa számjegy kiírása
 	PUSH CX							;CX mentése a verembe
 	PUSH DX							;DX mentése a verembe
 	MOV  DH, DL						;DL mentése
@@ -157,7 +154,7 @@ write_hexa PROC						;A DL-ben lévõ két hexa számjegy kiírása
 	POP  DX							;DX visszaállítása
 	POP  CX							;CX visszaállítása
 	RET								;Visszatérés a hívó rutinba
-write_hexa ENDP
+write_hexa endp
 
 write_hexa_digit PROC
 	PUSH DX							;DX mentése a verembe
@@ -204,21 +201,20 @@ read_char PROC						;Karakter beolvasása. A beolvasott karakter DL-be kerül
 read_char ENDP
 
 ;2 * ( (y-1) * <sorhossz=80> + x )
-draw_char PROC USES AX BX DX, MemoryItem: WORD, XY: WORD			;XY = [ X:BYTE | Y:BYTE ]
-	MOV  DX, XY
-	MOV  AL, DL						;AL -be az Y paraméter a verembõl
+draw_char PROC USES AX CX DI		;BX = [ X:BYTE | Y:BYTE ] DX = Kiírandó karakter attribútummal
+	MOV  AL, BL						;AL -be az Y paraméter a verembõl
 	DEC  AL							;Y-1 a nullától indexelés miatt
-	MOV  BL, Screen_width			;BL -be a képernyõ szélessége (oszlopok száma)
-	MUL  BL							;AX -be a kívánt magasság
-	XOR  BX, BX						;BX kinullázása a felsõ 8 bit miatt
-	MOV  BL, DH						;BL -be az X paraméter a verembõl
-	ADD  AX, BX						;AX -be a kívánt offset karaktter pozíció
+	MOV  CL, Screen_width			;BL -be a képernyõ szélessége (oszlopok száma)
+	MUL  CL							;AX -be a kívánt magasság
+	XOR  CX, CX						;BX kinullázása a felsõ 8 bit miatt
+	MOV  CL, BH						;BL -be az X paraméter a verembõl
+	ADD  AX, CX						;AX -be a kívánt offset karaktter pozíció
 	SHL  AX, 1						;AX -be a kívánt offset memória cím
 	
-	MOV  BX, AX						;BX -be a kívánt offset memória cím, mert csak bázis, vagy index regiszter elfogadott
-	MOV  AX, MemoryItem				;AX -be a kirajzolni kívánt karakter
+	MOV  DI, AX						;DI -be a kívánt offset memória cím, mert csak bázis, vagy index regiszter elfogadott
+	MOV  AX, DX						;AX -be a kirajzolni kívánt karakter
 
-	MOV  ES:[BX], AX				;Karakter kirajzolása
+	MOV  ES:[DI], AX				;Karakter kirajzolása
 	RET
 draw_char ENDP
 
