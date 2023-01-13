@@ -3,15 +3,19 @@
 	CR            EQU 13			;CR-be a kurzor a sor elejére kód
 	LF            EQU 10			;LF-be a kurzor új sorba kód
 	attr_text     EQU 00000111b		;Standard fekete alapon halvány fehér szín
-	attr_border   EQU 11010000b		;Ibolya (lila) alapon fekete szín és villog
+	attr_border   EQU 00011111b		;Kék alapon világos fehér szín
 	Screen_width  EQU 80			;Képernyõ szélessége
 	Screen_height EQU 25			;Képernyõ magassága
+	BorderHor     EQU "-"			;Horizontális szegély
+	BorderVer     EQU "|"			;Vertikális szegély
+	BorderCor     EQU "+"			;Sarok szegély
 
 .STACK
 .DATA
 	disc_text   DB "Number of disc: ",0
 	sector_text DB "Number of sector: ",0
-	lines       WORD 20
+	lines       WORD 20				;Kiírandó adatsorok darabszáma
+	DataInLine  WORD 18				;Adatok 1 adatsoban
 
 .DATA?
 	block  DB 512 DUP (?)			;1 blokknyi terület kijelölése
@@ -49,6 +53,8 @@ main PROC
 	XOR  DX, DX						;Kiírandó adatok kezdõcíme DS:DX
 	CALL write_block				;Egy blokk kiírása
 
+	CALL draw_border				;Szegély kirajzolása
+
 	MOV  AH, 4Ch					;AH-ba a visszatérés funkciókódja
 	INT  21h						;Visszatérés az operációs rendszerbe
 main ENDP
@@ -58,10 +64,10 @@ write_block PROC
 	PUSH CX							;CX mentése
 	PUSH DX							;DX mentése
 	MOV  BX, 0000001000000100b		;BX -be a képernyõ elsõ sor -és oszlopindexe [ Oszlop=2 | Sor=4 ]
-	MOV  CX, lines					;Kiírandó sorok száma CX-be (ideiglenesen csökkentve)
+	MOV  CX, lines					;Kiírandó sorok száma CX-be
 write_block_new:
 	CALL out_line					;Egy sor kiírása
-	ADD  DX, 16						;Következõ sor adatainak kezdõcíme
+	ADD  DX, DataInLine				;Következõ sor adatainak kezdõcíme
 	INC  BL							;Következõ sor indexe
 	LOOP write_block_new			;Új sor
 	POP  DX							;DX visszaállítása
@@ -79,7 +85,7 @@ out_line PROC
 	MOV  BP,DX						;Sor adatainak kezdõcíme BP-be
 	PUSH BP							;Mentés a karakteres kiíráshoz
 
-	MOV  CX, 16						;Egy sorban 16 hexadecimális karakter
+	MOV  CX, DataInLine				;Egy sorban DataInLine darab hexadecimális karakter
 out_line_hexa_out:
 
 	MOV  DL, Block[BP]				;Egy bájt betöltése
@@ -99,7 +105,7 @@ out_line_hexa_out:
 	INC  BP							;Következõ adatbájt címe
 	LOOP out_line_hexa_out			;Következõ bájt
 	INC  BH							;Üres hely kihagyása a kétféle mód között
-	MOV  CX, 16						;Egy sorban 16 karakter
+	MOV  CX, DataInLine				;Egy sorban DataInLine darab karakter
 	POP  BP							;Adatok kezdõcímének beállítása
 out_line_ascii_out:
 	INC  BH							;X := Következõ oszlop
@@ -120,6 +126,80 @@ out_line_invisible:
 	POP  BP							;BP visszaállítása
 	RET								;Vissza a hívó programba
 out_line ENDP
+
+;DataInLine darab 2 jegyû hexa szám, közöttük térköz, DataInLine darab karakter, 1db elválasztó térköz
+;1 + DataInLine * 2 + DataInLine + 1 + DataInLine + 1 = 4 DataInLine + 3
+draw_border PROC USES AX BX CX DX SI
+	MOV  BX, DataInLine				;BX -be az 1 sorban megjelenített adat mennyisége
+	MOV  CL, 2						;CL -be a shiftelés lépésszáma (CSAK a számlálóregiszterben elfogadott)
+	SHL  BX, CL						;Shiftelés 2 -vel (4 -gyel való szorzás)
+	MOV  CX, BX						;CX -be a shiftelés eredménye (a LOOP miatt ide kell)
+	ADD  CX, 3						;+3
+	MOV  DL, BorderHor				;DL -be a horizontális szegély karakter
+	MOV  DH, attr_border			;DH -ba a karakter stílus
+	PUSH CX							;CX mentése. Késõbb még kelleni fog egy másik regiszterben
+
+	MOV  BX, 0000001000000010b		;BX = [ BH | BL ] = [ X=2 | Y=2 ]
+	;(X=1 -nél sarok van. Y=1 nem látszik a programvégi 1 soros legörgetés miatt)
+	CALL draw_horizontal_border		;Felsõ szegély kirajzolása
+
+	MOV  AX, lines					;AX -be a kiírt adatsorok darabszáma
+	ADD  AL, 5						;egy-egy téröz alul, felül, és egy a programvégi görgetés miatt
+	MOV  BL, AL						;Y := AL
+	MOV  BH, 2						;X := 2 (X=1 -nél sarok van)
+	CALL draw_horizontal_border		;Alsó szegély kirajzolása
+
+	MOV  CX, lines					;CX -be a kiírt adatsorok darabszáma
+	ADD  CX, 2						;1 karakternyi térköz a szegélytól alul és felül (+2)
+	MOV  DL, BorderVer				;DL -be a vertikális szegély karakter
+
+	MOV  BX, 0000000100000011b		;BX = [ BH | BL ] = [ X=1 | Y=3 ] (X=1, Y=2 -nél sarok van)
+	CALL draw_vertical_border		;Bal oldali szegély kirajzolása
+	
+	POP  AX							;Korábban CX -bõl mentett adat visszaállítása AX -be
+	PUSH AX							;Veremmutató vissza a helyére
+	MOV  BH, AL						;BH -ba a horizontális szegély hossza
+	ADD  BH, 2						;BH -ba a vertikális szegély kezdõ X pozíciója
+	MOV  BL, 3						;Y := 3 (X=1, Y=2 -nél sarok van)
+	CALL draw_vertical_border		;Jobb oldali szegély kirajzolása
+
+	MOV  DL, BorderCor				;DL -be a sarok szegély karakter
+	MOV  BX, 0000000100000010b		;BX = [ BH | BL ] = [ X=1 | Y=2 ] (Bal felsõ sarok)
+	CALL draw_char
+
+	POP  AX							;Korábban CX -bõl mentett adat visszaállítása AX -be
+	MOV  BH, AL						;BH -ba a horizontális szegély hossza
+	ADD  BH, 2						;BH -ba a jobb oldali szegély X pozíciója
+	CALL draw_char					;Jobb felsõ sarok
+
+	MOV  AX, lines					;CX -be a kiírt adatsorok darabszáma
+	;2 karakter alul és felül a térköz és a szegély. Az 4. A KÖVETKEZÕbe kell rajzolni (+5)
+	ADD  AX, 5
+	MOV  BL, AL						;BL -be az alsó szegély Y pozíciója
+	CALL draw_char					;Jobb alsó sarok
+
+	MOV  BH, 1						;X := 1
+	CALL draw_char					;Bal alsó sarok
+	RET
+draw_border ENDP
+
+;Módosítja BX -et.
+draw_vertical_border PROC USES CX	;BX -et, és DX -et továbbadja draw_char -nak
+draw_vertical_border_start:
+	CALL draw_char					;Karakterek kirajzolása
+	INC  BL							;Következõ pozíció (X := X+1)
+	LOOP draw_vertical_border_start
+	RET
+draw_vertical_border ENDP
+
+;Módosítja BX -et.
+draw_horizontal_border PROC USES CX	;BX -et, és DX -et továbbadja draw_char -nak
+draw_horizontal_border_start:
+	CALL draw_char					;Karakterek kirajzolása
+	INC  BH							;Következõ pozíció (Y := Y+1)
+	LOOP draw_horizontal_border_start
+	RET
+draw_horizontal_border ENDP
 
 write_string PROC					;BX-ben címzett karaktersorozat kiírása 0 kódig.
 	PUSH DX							;DX mentése a verembe
